@@ -1,79 +1,39 @@
-import os
-import logging
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, BigInteger, ForeignKey
-from sqlalchemy.orm import sessionmaker, declarative_base, relationship
-from datetime import datetime
-from dotenv import load_dotenv
+# --- EN db_models.py ---
 
-# --- Configuración de Logging ---
-logging.basicConfig(level=logging.INFO)
+# ... (Todo el código de las clases y la función inicializar_db) ...
 
-# --- Definición de la Base ---
-Base = declarative_base()
+# --- Función de Inicialización ---
 
-# --- Modelos de Datos ---
+def inicializar_db(engine): 
+    # ... (el código de inicializar_db) ...
+    # ...
 
-class Usuario(Base):
-    __tablename__ = 'usuarios'
-    
-    id = Column(Integer, primary_key=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=True) 
-    username = Column(String(50), unique=True, nullable=False)
-    login_key = Column(String(100), nullable=False) 
-    saldo = Column(Float, default=0.00)
-    es_admin = Column(Boolean, default=False)
-    fecha_registro = Column(DateTime, default=datetime.now)
+# --- MODIFICACIÓN DE LA CONEXIÓN AL FINAL DEL ARCHIVO ---
+# Railway/Render pasa la URL como variable de entorno. La usamos.
 
-class Producto(Base):
-    __tablename__ = 'productos'
-
-    id = Column(Integer, primary_key=True)
-    nombre = Column(String(100), nullable=False)
-    categoria = Column(String(50), nullable=False)
-    precio = Column(Float, nullable=False)
-    descripcion = Column(String(255)) 
-    fecha_creacion = Column(DateTime, default=datetime.now)
-    
-    keys = relationship("Key", back_populates="producto")
-
-
-class Key(Base):
-    __tablename__ = 'keys'
-    
-    id = Column(Integer, primary_key=True)
-    producto_id = Column(Integer, ForeignKey('productos.id'), nullable=False)
-    licencia = Column(String(255), unique=True, nullable=False)
-    estado = Column(String(20), default='available') # 'available' o 'used'
-    
-    producto = relationship("Producto", back_populates="keys")
-
-# --- CONEXIÓN DE BASE DE DATOS ---
-
-load_dotenv() 
-# Lee de la variable de entorno o usa SQLite local por defecto
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///socios_bot.db') 
-ENGINE = create_engine(DATABASE_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
-
-def get_session():
-    """Retorna una nueva sesión de SQLAlchemy."""
-    return SessionLocal()
-
-def inicializar_db(engine=ENGINE): 
-    """Crea las tablas, y el usuario administrador inicial si no existe."""
-    
-    Base.metadata.create_all(bind=engine) 
-
-    Session = sessionmaker(bind=engine)
-    with Session() as session:
-        if session.query(Usuario).filter(Usuario.es_admin == True).count() == 0:
-            logging.info("Insertando USUARIO ADMINISTRADOR INICIAL: admin/adminpass")
-            admin_user = Usuario(username='admin', login_key='adminpass', saldo=1000.00, es_admin=True)
-            session.add(admin_user)
-            session.commit()
-            print("Base de datos inicializada con usuario administrador.")
-        
 if __name__ == '__main__':
-    print("Inicializando la base de datos...")
-    inicializar_db(ENGINE) 
-    print("Inicialización completa.")
+    # Carga el .env localmente, pero en Railway usa las variables inyectadas.
+    load_dotenv() 
+    
+    # Intenta obtener la URL de la variable de entorno, que ahora es la de Railway
+    DATABASE_URL = os.getenv('DATABASE_URL') 
+    
+    if not DATABASE_URL:
+        print("ERROR: DATABASE_URL no encontrada. Asegúrate de definirla en .env o en el hosting.")
+        sys.exit(1) # Importar sys
+
+    print(f"Conectando a PostgreSQL Remoto: {DATABASE_URL}")
+
+    try:
+        # Crea el motor de conexión
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        print("Inicializando la base de datos y creando/verificando tablas...")
+        
+        # Ejecuta la función de creación de tablas
+        inicializar_db(engine) 
+        print("¡Proceso de creación de tablas finalizado con éxito!")
+        
+    except Exception as e:
+        print(f"\n--- ERROR CRÍTICO DE CONEXIÓN ---\nNo se pudo conectar a la base de datos en {DATABASE_URL}")
+        print("Asegúrate de que la URL y las credenciales sean correctas.")
+        print(f"Detalle del error: {e}\n")
