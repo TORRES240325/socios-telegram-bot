@@ -14,7 +14,6 @@ TOKEN = os.getenv('BOT_MAIN_TOKEN')
 if not TOKEN:
     raise ValueError("Error: BOT_MAIN_TOKEN no encontrado. Verifica las variables de entorno.")
 
-# Inicializa la base de datos (crea tablas si no existen)
 inicializar_db() 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)

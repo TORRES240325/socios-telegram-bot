@@ -15,7 +15,7 @@ ADMIN_TOKEN_STR = os.getenv('BOT_ADMIN_TOKEN')
 if not ADMIN_TOKEN_STR:
     raise ValueError("Error: BOT_ADMIN_TOKEN no encontrado. Verifica las variables de entorno.")
 
-# Inicializa la base de datos (crea tablas si no existen)
+# Inicializa la base de datos (se hace después de cargar ENV)
 inicializar_db() 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -512,9 +512,10 @@ async def process_add_licenses(update: Update, context: ContextTypes.DEFAULT_TYP
         return ADD_KEYS_LICENSES
         
     added_keys = 0
-    with get_session() as session_db:
+    db_session = get_session() 
+    try:
         for lic in keys_list:
-            existing_key = session_db.query(Key).filter_by(licencia=lic).first()
+            existing_key = db_session.query(Key).filter_by(licencia=lic).first()
             if not existing_key:
                 nueva_key = Key(producto_id=product_id, licencia=lic, estado='available')
                 db_session.add(nueva_key)
@@ -522,14 +523,20 @@ async def process_add_licenses(update: Update, context: ContextTypes.DEFAULT_TYP
             else:
                 logger.warning(f"Key duplicada omitida: {lic}")
         
-        session_db.commit()
+        db_session.commit()
 
-    await update.message.reply_text(
-        f"✅ Keys agregadas a **{product_name}**:\n"
-        f"Se agregaron **{added_keys}** nuevas licencias.",
-        parse_mode='Markdown',
-        reply_markup=get_admin_keyboard()
-    )
+        await update.message.reply_text(
+            f"✅ Keys agregadas a **{product_name}**:\n"
+            f"Se agregaron **{added_keys}** nuevas licencias.",
+            parse_mode='Markdown',
+            reply_markup=get_admin_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Error al añadir keys: {e}")
+        db_session.rollback()
+        await update.message.reply_text("❌ Error al guardar las keys. Usa /cancelar.", reply_markup=get_admin_keyboard())
+    finally:
+        db_session.close()
     
     context.user_data.clear()
     return ConversationHandler.END
