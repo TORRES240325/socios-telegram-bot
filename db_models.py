@@ -1,9 +1,10 @@
 import os
 import logging
+import sys
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, BigInteger, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from datetime import datetime
-from dotenv import load_dotenv
+from dotenv import load_dotenv 
 
 # --- Configuración de Logging ---
 logging.basicConfig(level=logging.INFO)
@@ -47,10 +48,10 @@ class Key(Base):
     
     producto = relationship("Producto", back_populates="keys")
 
-# --- CONEXIÓN DE BASE DE DATOS ---
 
-load_dotenv() 
-# Lee de la variable de entorno o usa SQLite local por defecto
+# --- Conexión y Sesión ---
+load_dotenv() # Carga variables para uso local (no afecta Railway)
+# Lee la URL de la variable de entorno (PostgreSQL en Railway, SQLite si no existe)
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///socios_bot.db') 
 ENGINE = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
@@ -66,6 +67,7 @@ def inicializar_db(engine=ENGINE):
 
     Session = sessionmaker(bind=engine)
     with Session() as session:
+        # Verifica si ya existe algún usuario con privilegios de administrador
         if session.query(Usuario).filter(Usuario.es_admin == True).count() == 0:
             logging.info("Insertando USUARIO ADMINISTRADOR INICIAL: admin/adminpass")
             admin_user = Usuario(username='admin', login_key='adminpass', saldo=1000.00, es_admin=True)
@@ -73,7 +75,14 @@ def inicializar_db(engine=ENGINE):
             session.commit()
             print("Base de datos inicializada con usuario administrador.")
         
+# Este bloque se ejecuta cuando el comando de inicio en Railway llama a este archivo.
 if __name__ == '__main__':
-    print("Inicializando la base de datos...")
-    inicializar_db(ENGINE) 
-    print("Inicialización completa.")
+    # Usamos el motor ENGINE que ya está configurado para leer DATABASE_URL
+    print(f"Conectando a Base de Datos: {DATABASE_URL}")
+    try:
+        inicializar_db(ENGINE) 
+        print("¡Proceso de creación de tablas finalizado con éxito!")
+    except Exception as e:
+        print(f"\n--- ERROR CRÍTICO DE CONEXIÓN EN DB_MODELS.PY ---\nDetalle: {e}")
+        # Si falla en Railway, detiene el proceso para que no se despliegue con una DB rota.
+        sys.exit(1)
