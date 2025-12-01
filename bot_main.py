@@ -2,19 +2,19 @@ import os
 import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-from db_models import Usuario, Producto, Key, inicializar_db, get_session 
 from sqlalchemy.orm.exc import NoResultFound
+from db_models import Usuario, Producto, Key, inicializar_db, get_session 
+from dotenv import load_dotenv
 
 # =================================================================
-# 1. Configuración Inicial
+# 1. Configuración Inicial (Lectura de Variables de Entorno)
 # =================================================================
-
-# Lee el token de la variable de entorno (cargada por el loader_main.py)
+load_dotenv()
 TOKEN = os.getenv('BOT_MAIN_TOKEN') 
 if not TOKEN:
-    # Esto solo se ejecutará si se ejecuta bot_main.py directamente SIN el loader.
-    raise ValueError("Error: BOT_MAIN_TOKEN no encontrado. Ejecuta a través de loader_main.py.")
+    raise ValueError("Error: BOT_MAIN_TOKEN no encontrado. Verifica las variables de entorno.")
 
+# Inicializa la base de datos (crea tablas si no existen)
 inicializar_db() 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -175,7 +175,7 @@ async def show_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text("Please log in first using /start or the Login button.")
         
 # =================================================================
-# 4. Handlers de Compra (Buy keys)
+# 4. Handlers de Compra (Buy keys) - Lógica de Inventario
 # =================================================================
 
 async def show_buy_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -244,7 +244,7 @@ async def handle_category_selection(update: Update, context: ContextTypes.DEFAUL
 
 
 async def handle_final_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Procesa las selecciones de compra."""
+    """Procesa las selecciones de compra (Buy)."""
     text = update.message.text
     user_id_telegram = update.effective_user.id
     

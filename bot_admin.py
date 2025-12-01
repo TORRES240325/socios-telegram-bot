@@ -1,25 +1,23 @@
 import os
 import logging
+from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 from sqlalchemy.exc import IntegrityError
-from db_models import Usuario, Producto, Key, get_session 
+from db_models import Usuario, Producto, Key, get_session, inicializar_db 
 
 # =================================================================
-# 1. Configuración Inicial
+# 1. Configuración Inicial (Lectura de Variables de Entorno)
 # =================================================================
 
+load_dotenv() 
 ADMIN_TOKEN_STR = os.getenv('BOT_ADMIN_TOKEN')
-ADMIN_USER_ID_STR = os.getenv('ADMIN_USER_ID', '0') # Se mantiene pero no se usa para la seguridad
- 
 if not ADMIN_TOKEN_STR:
-    raise ValueError("Error: BOT_ADMIN_TOKEN no encontrado. Ejecuta a través de loader_admin.py.")
+    raise ValueError("Error: BOT_ADMIN_TOKEN no encontrado. Verifica las variables de entorno.")
 
-try:
-    ADMIN_USER_ID = int(ADMIN_USER_ID_STR)
-except ValueError:
-    ADMIN_USER_ID = 0
-    
+# Inicializa la base de datos (crea tablas si no existen)
+inicializar_db() 
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -37,14 +35,12 @@ DELETE_PRODUCT_ID = 12
 
 def check_admin(update: Update) -> bool:
     """Verifica si el usuario está logueado y tiene permisos de administrador."""
-    # Ignora mensajes sin usuario efectivo (ej: mensajes de canal)
     if not update.effective_user:
         return False
 
     user_id_telegram = update.effective_user.id
     
     with get_session() as session_db:
-        # Busca si existe un usuario con este telegram_id Y que sea admin=True
         usuario = session_db.query(Usuario).filter_by(
             telegram_id=user_id_telegram, 
             es_admin=True
@@ -53,7 +49,6 @@ def check_admin(update: Update) -> bool:
     if usuario:
         return True
     else:
-        # Solo responde el mensaje de acceso denegado si no es el comando /login
         if update.message and update.message.text and not update.message.text.lower().startswith('/login'):
             update.message.reply_text(
                 "❌ Acceso denegado. Debes iniciar sesión como administrador.\n"
@@ -87,7 +82,6 @@ async def admin_login_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ).first()
 
         if usuario:
-            # 1. Verifica si la ID de Telegram ya está asociada a OTRA cuenta
             existing_user_with_id = session_db.query(Usuario).filter(
                 Usuario.telegram_id == user_id_telegram, 
                 Usuario.id != usuario.id
@@ -99,7 +93,6 @@ async def admin_login_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return ConversationHandler.END
 
-            # 2. Asocia la telegram_id actual al usuario administrador
             usuario.telegram_id = user_id_telegram
             session_db.commit()
 
@@ -524,7 +517,7 @@ async def process_add_licenses(update: Update, context: ContextTypes.DEFAULT_TYP
             existing_key = session_db.query(Key).filter_by(licencia=lic).first()
             if not existing_key:
                 nueva_key = Key(producto_id=product_id, licencia=lic, estado='available')
-                session_db.add(nueva_key)
+                db_session.add(nueva_key)
                 added_keys += 1
             else:
                 logger.warning(f"Key duplicada omitida: {lic}")
